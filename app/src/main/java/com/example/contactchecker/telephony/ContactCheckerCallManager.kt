@@ -11,6 +11,7 @@ import android.telecom.TelecomManager
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,7 +91,7 @@ object ContactCheckerCallManager {
             activeCall = null
         }
 
-        if (context != null && (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && context != null && ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
             val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             try {
                 telecomManager?.endCall()
@@ -106,16 +107,8 @@ object ContactCheckerCallManager {
         val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-                override fun onCallStateChanged(state: Int) {
-                    handleTelephonyState(state)
-                }
-            }
-            telephonyCallback = callback
-            try {
-                telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
-            } catch (_: SecurityException) {
-                // Missing permission
+            telephonyCallback = Api31TelephonyHelper.register(context, telephonyManager) { state ->
+                handleTelephonyState(state)
             }
         } else {
             @Suppress("DEPRECATION")
@@ -138,8 +131,8 @@ object ContactCheckerCallManager {
     fun unregisterTelephonyListener(context: Context) {
         val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return
         telephonyCallback?.let { cb ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && cb is TelephonyCallback) {
-                telephonyManager.unregisterTelephonyCallback(cb)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Api31TelephonyHelper.unregister(telephonyManager, cb)
             } else if (cb is PhoneStateListener) {
                 @Suppress("DEPRECATION")
                 telephonyManager.listen(cb, PhoneStateListener.LISTEN_NONE)
@@ -162,6 +155,33 @@ object ContactCheckerCallManager {
                 if (_currentCallState.value != CallState.IDLE) {
                     _currentCallState.value = CallState.DISCONNECTED
                 }
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private object Api31TelephonyHelper {
+        fun register(
+            context: Context,
+            telephonyManager: TelephonyManager,
+            onStateChanged: (Int) -> Unit
+        ): Any {
+            val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                override fun onCallStateChanged(state: Int) {
+                    onStateChanged(state)
+                }
+            }
+            try {
+                telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
+            } catch (_: SecurityException) {
+                // Missing permission
+            }
+            return callback
+        }
+
+        fun unregister(telephonyManager: TelephonyManager, callback: Any) {
+            if (callback is TelephonyCallback) {
+                telephonyManager.unregisterTelephonyCallback(callback)
             }
         }
     }
