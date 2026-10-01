@@ -36,13 +36,27 @@ private fun createSafeRepository(application: Application): ContactRepository {
         ContactRepositoryImpl(application)
     } catch (_: Throwable) {
         object : ContactRepository {
-            override val contacts: StateFlow<List<ContactItem>> = MutableStateFlow(emptyList())
-            override val verificationState: StateFlow<VerificationState> = MutableStateFlow(VerificationState.IDLE)
-            override val currentIndex: StateFlow<Int> = MutableStateFlow(0)
-            override val progress: StateFlow<Float> = MutableStateFlow(0f)
-            override fun setContacts(newContacts: List<ContactItem>) {}
+            private val _contacts = MutableStateFlow<List<ContactItem>>(emptyList())
+            private val _verificationState = MutableStateFlow(VerificationState.IDLE)
+            private val _currentIndex = MutableStateFlow(0)
+            private val _progress = MutableStateFlow(0f)
+
+            override val contacts: StateFlow<List<ContactItem>> = _contacts.asStateFlow()
+            override val verificationState: StateFlow<VerificationState> = _verificationState.asStateFlow()
+            override val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
+            override val progress: StateFlow<Float> = _progress.asStateFlow()
+
+            override fun setContacts(newContacts: List<ContactItem>) {
+                _contacts.value = newContacts
+                _currentIndex.value = 0
+                _verificationState.value = VerificationState.IDLE
+            }
             override fun addContactsFromText(inputText: String) {}
-            override fun clearContacts() {}
+            override fun clearContacts() {
+                _contacts.value = emptyList()
+                _currentIndex.value = 0
+                _verificationState.value = VerificationState.IDLE
+            }
             override fun removeContact(id: String) {}
             override fun startVerification(timeoutMs: Long) {}
             override fun pauseVerification() {}
@@ -161,6 +175,7 @@ class MainViewModel(
     }
 
     fun clearContacts() {
+        _rawInputText.value = ""
         repository.clearContacts()
     }
 

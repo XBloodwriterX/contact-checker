@@ -260,7 +260,9 @@ fun MainScreenContent(
                         onPause = onPause,
                         onResume = onResume,
                         onStop = onStop,
-                        onReset = onReset
+                        onReset = onReset,
+                        onClearQueue = onClearQueue,
+                        onLoadSample = onLoadSample
                     )
 
                     SummaryBadges(

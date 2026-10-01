@@ -1,7 +1,4 @@
-package com.example.contactchecker
-
 import android.app.Application
-import android.content.ContextWrapper
 import com.example.contactchecker.data.model.ContactStatus
 import com.example.contactchecker.data.model.VerificationState
 import com.example.contactchecker.repository.ContactRepositoryImpl
@@ -125,5 +122,36 @@ class MainViewModelTest {
 
         viewModel.clearContacts()
         assertEquals(0, viewModel.contactList.value.size)
+    }
+
+    @Test
+    fun testClearContactsCompletelyRemovesQueueAndResetsState() = runTest {
+        viewModel.onRawInputChanged("+18005550199, 555-0198")
+        viewModel.parseAndAddInput()
+        viewModel.onRawInputChanged("residual text in input")
+        viewModel.startVerification()
+
+        assertEquals(2, viewModel.contactList.value.size)
+        assertEquals(VerificationState.RUNNING, viewModel.verificationState.value)
+
+        viewModel.clearContacts()
+
+        assertEquals(0, viewModel.contactList.value.size)
+        assertEquals("", viewModel.rawInputText.value)
+        assertEquals(0, viewModel.currentIndex.value)
+        assertEquals(VerificationState.IDLE, viewModel.verificationState.value)
+        assertEquals(0, viewModel.validCount.value)
+        assertEquals(0, viewModel.invalidCount.value)
+        assertEquals(0, viewModel.pendingCount.value)
+        assertEquals(0, viewModel.inProgressCount.value)
+
+        val uiState = viewModel.uiState.value
+        assertEquals(0, uiState.contactList.size)
+        assertEquals("", uiState.rawInputText)
+        assertEquals(VerificationState.IDLE, uiState.verificationState)
+        assertEquals(0, uiState.validCount)
+        assertEquals(0, uiState.invalidCount)
+        assertEquals(0, uiState.pendingCount)
+        assertEquals(0, uiState.inProgressCount)
     }
 }

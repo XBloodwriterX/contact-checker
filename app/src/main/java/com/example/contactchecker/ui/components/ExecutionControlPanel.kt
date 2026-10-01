@@ -216,7 +216,7 @@ fun ExecutionControlPanel(
                         Text("Sample Data")
                     }
                 } else {
-                    val isClearEnabled = isActionEnabled && totalCount > 0
+                    val isClearEnabled = totalCount > 0
                     OutlinedButton(
                         onClick = { onClearQueue?.invoke() },
                         enabled = isClearEnabled,

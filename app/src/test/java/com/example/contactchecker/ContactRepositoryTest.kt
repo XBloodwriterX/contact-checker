@@ -87,4 +87,20 @@ class ContactRepositoryTest {
         repository.stopVerification()
         assertEquals(VerificationState.STOPPED, repository.verificationState.value)
     }
+
+    @Test
+    fun testClearContacts_removesAllContactsAndResetsState() = runTest {
+        repository.addContactsFromText("+18005550199, 555-0123")
+        repository.startVerification(timeoutMs = 3000L)
+
+        assertEquals(2, repository.contacts.value.size)
+        assertEquals(VerificationState.RUNNING, repository.verificationState.value)
+
+        repository.clearContacts()
+
+        assertEquals(0, repository.contacts.value.size)
+        assertEquals(0, repository.currentIndex.value)
+        assertEquals(VerificationState.IDLE, repository.verificationState.value)
+        assertEquals(0f, repository.progress.value)
+    }
 }
