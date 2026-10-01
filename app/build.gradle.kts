@@ -5,14 +5,16 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
 }
 
+extra["android.injected.testOnly"] = "false"
+
 android {
-    namespace = "com.example.contactchecker"
+    namespace = "com.bloodwriter.contactchecker"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.contactchecker"
+        applicationId = "com.bloodwriter.contactchecker"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -33,6 +35,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
+            signingConfig = signingConfigs.getByName("debug")
             optimization {
                 enable = false
             }
