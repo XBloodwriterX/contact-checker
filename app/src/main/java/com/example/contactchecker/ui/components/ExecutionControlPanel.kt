@@ -1,6 +1,5 @@
 package com.example.contactchecker.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,14 +12,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -52,7 +53,9 @@ fun ExecutionControlPanel(
     onResume: () -> Unit,
     onStop: () -> Unit,
     onReset: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClearQueue: (() -> Unit)? = null,
+    onLoadSample: (() -> Unit)? = null,
 ) {
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
@@ -60,12 +63,9 @@ fun ExecutionControlPanel(
         label = "ProgressAnimation"
     )
 
-    Card(
+    ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -80,69 +80,82 @@ fun ExecutionControlPanel(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Control Buttons Row
+            // Row 1: Primary Verification Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Start Button
-                val isStartEnabled = totalCount > 0 && (
-                    verificationState == VerificationState.IDLE ||
-                        verificationState == VerificationState.STOPPED ||
-                        verificationState == VerificationState.COMPLETED
-                    )
-                Button(
-                    onClick = onStart,
-                    enabled = isStartEnabled,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2E7D32),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Start")
-                }
-
-                // Pause / Resume Button
-                val isPauseResumeEnabled = verificationState == VerificationState.RUNNING ||
-                    verificationState == VerificationState.PAUSED
-                val isPaused = verificationState == VerificationState.PAUSED
-
-                FilledTonalButton(
-                    onClick = { if (isPaused) onResume() else onPause() },
-                    enabled = isPauseResumeEnabled,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color(0xFFE65100),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isPaused) "Resume" else "Pause")
+                // Start / Pause / Resume Button
+                when (verificationState) {
+                    VerificationState.RUNNING -> {
+                        FilledTonalButton(
+                            onClick = onPause,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = Color(0xFFE65100),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Pause,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Pause")
+                        }
+                    }
+                    VerificationState.PAUSED -> {
+                        Button(
+                            onClick = onResume,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2E7D32),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Resume")
+                        }
+                    }
+                    else -> {
+                        val isStartEnabled = totalCount > 0
+                        Button(
+                            onClick = onStart,
+                            enabled = isStartEnabled,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2E7D32),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Start")
+                        }
+                    }
                 }
 
                 // Stop Button
-                val isStopEnabled = verificationState == VerificationState.RUNNING ||
-                    verificationState == VerificationState.PAUSED
-                Button(
+                val isStopEnabled = (verificationState == VerificationState.RUNNING) ||
+                    (verificationState == VerificationState.PAUSED)
+                FilledTonalButton(
                     onClick = onStop,
                     enabled = isStopEnabled,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
                     )
                 ) {
                     Icon(
@@ -150,10 +163,19 @@ fun ExecutionControlPanel(
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Stop")
                 }
+            }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Row 2: Management Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 // Reset Button
                 val isResetEnabled = totalCount > 0 && (
                     verificationState == VerificationState.IDLE ||
@@ -171,8 +193,43 @@ fun ExecutionControlPanel(
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Reset")
+                }
+
+                // Clear Queue or Sample Data Action Button
+                val isActionEnabled = verificationState != VerificationState.RUNNING &&
+                    verificationState != VerificationState.PAUSED
+
+                if (totalCount == 0 && onLoadSample != null) {
+                    OutlinedButton(
+                        onClick = onLoadSample,
+                        enabled = isActionEnabled,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoFixHigh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sample Data")
+                    }
+                } else {
+                    val isClearEnabled = isActionEnabled && totalCount > 0
+                    OutlinedButton(
+                        onClick = { onClearQueue?.invoke() },
+                        enabled = isClearEnabled,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DeleteSweep,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Clear Queue")
+                    }
                 }
             }
 
@@ -226,9 +283,31 @@ fun ExecutionControlPanel(
     }
 }
 
-@Preview(showBackground = true)
+@Preview(name = "Execution Controls - Idle", showBackground = true)
 @Composable
-fun ExecutionControlPanelPreview() {
+fun ExecutionControlPanelIdlePreview() {
+    ContactCheckerTheme {
+        ExecutionControlPanel(
+            verificationState = VerificationState.IDLE,
+            progress = 0f,
+            currentIndex = 0,
+            totalCount = 5,
+            currentPhoneNumber = null,
+            onStart = {},
+            onPause = {},
+            onResume = {},
+            onStop = {},
+            onReset = {},
+            onClearQueue = {},
+            onLoadSample = {},
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Preview(name = "Execution Controls - Running", showBackground = true)
+@Composable
+fun ExecutionControlPanelRunningPreview() {
     ContactCheckerTheme {
         ExecutionControlPanel(
             verificationState = VerificationState.RUNNING,
@@ -241,6 +320,52 @@ fun ExecutionControlPanelPreview() {
             onResume = {},
             onStop = {},
             onReset = {},
+            onClearQueue = {},
+            onLoadSample = {},
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Preview(name = "Execution Controls - Paused", showBackground = true)
+@Composable
+fun ExecutionControlPanelPausedPreview() {
+    ContactCheckerTheme {
+        ExecutionControlPanel(
+            verificationState = VerificationState.PAUSED,
+            progress = 0.45f,
+            currentIndex = 2,
+            totalCount = 6,
+            currentPhoneNumber = "+18005550199",
+            onStart = {},
+            onPause = {},
+            onResume = {},
+            onStop = {},
+            onReset = {},
+            onClearQueue = {},
+            onLoadSample = {},
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Preview(name = "Execution Controls - Empty Queue", showBackground = true)
+@Composable
+fun ExecutionControlPanelEmptyPreview() {
+    ContactCheckerTheme {
+        ExecutionControlPanel(
+            verificationState = VerificationState.IDLE,
+            progress = 0f,
+            currentIndex = 0,
+            totalCount = 0,
+            currentPhoneNumber = null,
+            onStart = {},
+            onPause = {},
+            onResume = {},
+            onStop = {},
+            onReset = {},
+            onClearQueue = {},
+            onLoadSample = {},
             modifier = Modifier.padding(16.dp)
         )
     }
