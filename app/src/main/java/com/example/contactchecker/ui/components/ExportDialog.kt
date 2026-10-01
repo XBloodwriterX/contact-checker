@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.FileUpload
@@ -42,27 +44,32 @@ import com.example.contactchecker.ui.theme.ContactCheckerTheme
 import com.example.contactchecker.utils.ContactExporter
 import com.example.contactchecker.utils.ExportFilter
 import com.example.contactchecker.utils.ExportFormat
+import com.example.contactchecker.utils.ExportPackaging
 
 @Composable
 fun ExportDialog(
     contacts: List<ContactItem>,
     onDismiss: () -> Unit,
-    onCopy: (content: String, format: ExportFormat) -> Unit,
-    onShare: (content: String, format: ExportFormat) -> Unit,
+    onCopy: (filter: ExportFilter, format: ExportFormat, packaging: ExportPackaging) -> Unit,
+    onShare: (filter: ExportFilter, format: ExportFormat, packaging: ExportPackaging) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf(ExportFilter.VALID_ONLY) }
+    var selectedPackaging by remember { mutableStateOf(ExportPackaging.SINGLE_FILE) }
     var selectedFormat by remember { mutableStateOf(ExportFormat.CSV) }
 
-    val validCount = remember(contacts) {
-        contacts.count { it.status == ContactStatus.VALID }
-    }
+    val validCount = remember(contacts) { contacts.count { it.status == ContactStatus.VALID } }
+    val invalidCount = remember(contacts) { contacts.count { it.status == ContactStatus.INVALID } }
+    val pendingCount = remember(contacts) { contacts.count { it.status == ContactStatus.PENDING } }
+    val verifiedCount = remember(validCount, invalidCount) { validCount + invalidCount }
     val totalCount = contacts.size
 
-    val exportCount = if (selectedFilter == ExportFilter.VALID_ONLY) validCount else totalCount
-
-    val exportedContent = remember(contacts, selectedFilter, selectedFormat) {
-        ContactExporter.exportData(contacts, selectedFilter, selectedFormat)
+    val exportCount = when (selectedFilter) {
+        ExportFilter.VALID_ONLY -> validCount
+        ExportFilter.INVALID_ONLY -> invalidCount
+        ExportFilter.PENDING_ONLY -> pendingCount
+        ExportFilter.VERIFIED_ONLY -> verifiedCount
+        ExportFilter.ALL -> totalCount
     }
 
     AlertDialog(
@@ -83,7 +90,9 @@ fun ExportDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Summary Card
@@ -107,13 +116,23 @@ fun ExportDialog(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (selectedPackaging == ExportPackaging.SINGLE_FILE) {
+                                "Output: Single file/stream"
+                            } else {
+                                "Output: Separate files per status"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
-                // Filter Option
+                // Category Filter Options
                 Column {
                     Text(
-                        text = "Contact Scope",
+                        text = "Category Filter",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -121,10 +140,28 @@ fun ExportDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Column(modifier = Modifier.selectableGroup()) {
                         FilterOptionRow(
-                            title = "Valid Contacts Only ($validCount)",
+                            title = "Valid Only ($validCount)",
                             selected = selectedFilter == ExportFilter.VALID_ONLY
                         ) {
                             selectedFilter = ExportFilter.VALID_ONLY
+                        }
+                        FilterOptionRow(
+                            title = "Invalid Only ($invalidCount)",
+                            selected = selectedFilter == ExportFilter.INVALID_ONLY
+                        ) {
+                            selectedFilter = ExportFilter.INVALID_ONLY
+                        }
+                        FilterOptionRow(
+                            title = "Pending Only ($pendingCount)",
+                            selected = selectedFilter == ExportFilter.PENDING_ONLY
+                        ) {
+                            selectedFilter = ExportFilter.PENDING_ONLY
+                        }
+                        FilterOptionRow(
+                            title = "Valid & Invalid (Both) ($verifiedCount)",
+                            selected = selectedFilter == ExportFilter.VERIFIED_ONLY
+                        ) {
+                            selectedFilter = ExportFilter.VERIFIED_ONLY
                         }
                         FilterOptionRow(
                             title = "All Contacts ($totalCount)",
@@ -135,7 +172,34 @@ fun ExportDialog(
                     }
                 }
 
-                // Format Option
+                // Packaging Mode Options
+                Column {
+                    Text(
+                        text = "Packaging Mode",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(modifier = Modifier.selectableGroup()) {
+                        FilterOptionRow(
+                            title = "Single File",
+                            subtitle = "Export all selected numbers into a single file or text",
+                            selected = selectedPackaging == ExportPackaging.SINGLE_FILE
+                        ) {
+                            selectedPackaging = ExportPackaging.SINGLE_FILE
+                        }
+                        FilterOptionRow(
+                            title = "Separate Files (per status)",
+                            subtitle = "Generate separate files for valid, invalid, pending contacts",
+                            selected = selectedPackaging == ExportPackaging.SEPARATE_FILES
+                        ) {
+                            selectedPackaging = ExportPackaging.SEPARATE_FILES
+                        }
+                    }
+                }
+
+                // Format Options
                 Column {
                     Text(
                         text = "File / Output Format",
@@ -146,8 +210,8 @@ fun ExportDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Column(modifier = Modifier.selectableGroup()) {
                         FilterOptionRow(
-                            title = "CSV Format (.csv)",
-                            subtitle = "Phone Number, Status, Note, Timestamp",
+                            title = "CSV (.csv)",
+                            subtitle = "Phone Number, Status, Verification Note, Timestamp",
                             selected = selectedFormat == ExportFormat.CSV
                         ) {
                             selectedFormat = ExportFormat.CSV
@@ -170,7 +234,7 @@ fun ExportDialog(
             ) {
                 OutlinedButton(
                     onClick = {
-                        onCopy(exportedContent, selectedFormat)
+                        onCopy(selectedFilter, selectedFormat, selectedPackaging)
                     },
                     enabled = exportCount > 0
                 ) {
@@ -184,7 +248,7 @@ fun ExportDialog(
 
                 Button(
                     onClick = {
-                        onShare(exportedContent, selectedFormat)
+                        onShare(selectedFilter, selectedFormat, selectedPackaging)
                     },
                     enabled = exportCount > 0
                 ) {
@@ -201,6 +265,29 @@ fun ExportDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
+        },
+        modifier = modifier
+    )
+}
+
+@Composable
+fun ExportDialog(
+    contacts: List<ContactItem>,
+    onDismiss: () -> Unit,
+    onCopy: (content: String, format: ExportFormat) -> Unit,
+    onShare: (content: String, format: ExportFormat) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ExportDialog(
+        contacts = contacts,
+        onDismiss = onDismiss,
+        onCopy = { filter, format, packaging ->
+            val content = ContactExporter.exportData(contacts, filter, format, packaging)
+            onCopy(content, format)
+        },
+        onShare = { filter, format, packaging ->
+            val content = ContactExporter.exportData(contacts, filter, format, packaging)
+            onShare(content, format)
         },
         modifier = modifier
     )
@@ -248,15 +335,16 @@ private fun FilterOptionRow(
 fun ExportDialogPreview() {
     val sampleContacts = listOf(
         ContactItem(id = "1", rawInput = "+18005550199", phoneNumber = "+18005550199", status = ContactStatus.VALID),
-        ContactItem(id = "2", rawInput = "555-0198", phoneNumber = "5550198", status = ContactStatus.INVALID)
+        ContactItem(id = "2", rawInput = "555-0198", phoneNumber = "5550198", status = ContactStatus.INVALID),
+        ContactItem(id = "3", rawInput = "+1234567890", phoneNumber = "+1234567890", status = ContactStatus.PENDING)
     )
     ContactCheckerTheme {
         Surface {
             ExportDialog(
                 contacts = sampleContacts,
                 onDismiss = {},
-                onCopy = { _, _ -> },
-                onShare = { _, _ -> }
+                onCopy = { _, _, _ -> },
+                onShare = { _, _, _ -> }
             )
         }
     }

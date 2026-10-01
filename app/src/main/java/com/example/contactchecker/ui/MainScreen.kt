@@ -111,12 +111,12 @@ fun MainScreenContent(
         ExportDialog(
             contacts = uiState.contactList,
             onDismiss = { showExportDialog = false },
-            onCopy = { content, _ ->
-                ContactExporter.copyToClipboard(context, content)
+            onCopy = { filter, format, packaging ->
+                ContactExporter.copyToClipboard(context, uiState.contactList, filter, format, packaging)
                 showExportDialog = false
             },
-            onShare = { content, format ->
-                ContactExporter.shareContent(context, content, format)
+            onShare = { filter, format, packaging ->
+                ContactExporter.shareExport(context, uiState.contactList, filter, format, packaging)
                 showExportDialog = false
             }
         )
