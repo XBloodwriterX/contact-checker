@@ -1,6 +1,5 @@
 package com.example.contactchecker.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +42,11 @@ fun ContactCheckerTheme(
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            try {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } catch (_: Exception) {
+                if (darkTheme) DarkColorScheme else LightColorScheme
+            }
         }
 
         darkTheme -> DarkColorScheme

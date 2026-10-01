@@ -31,9 +31,31 @@ data class MainUiState(
     val permissionGranted: Boolean = false
 )
 
+private fun createSafeRepository(application: Application): ContactRepository {
+    return try {
+        ContactRepositoryImpl(application)
+    } catch (_: Throwable) {
+        object : ContactRepository {
+            override val contacts: StateFlow<List<ContactItem>> = MutableStateFlow(emptyList())
+            override val verificationState: StateFlow<VerificationState> = MutableStateFlow(VerificationState.IDLE)
+            override val currentIndex: StateFlow<Int> = MutableStateFlow(0)
+            override val progress: StateFlow<Float> = MutableStateFlow(0f)
+            override fun setContacts(newContacts: List<ContactItem>) {}
+            override fun addContactsFromText(inputText: String) {}
+            override fun clearContacts() {}
+            override fun removeContact(id: String) {}
+            override fun startVerification(timeoutMs: Long) {}
+            override fun pauseVerification() {}
+            override fun resumeVerification() {}
+            override fun stopVerification() {}
+            override fun resetVerification() {}
+        }
+    }
+}
+
 class MainViewModel(
     application: Application,
-    private val repository: ContactRepository = ContactRepositoryImpl(application)
+    private val repository: ContactRepository = createSafeRepository(application)
 ) : AndroidViewModel(application) {
 
     private val _rawInputText = MutableStateFlow("")
@@ -157,10 +179,15 @@ class MainViewModelFactory(
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return if (repository != null) {
-            MainViewModel(application, repository) as T
-        } else {
-            MainViewModel(application) as T
+        return try {
+            if (repository != null) {
+                MainViewModel(application, repository) as T
+            } else {
+                MainViewModel(application) as T
+            }
+        } catch (_: Throwable) {
+            val safeRepo = createSafeRepository(application)
+            MainViewModel(application, safeRepo) as T
         }
     }
 }

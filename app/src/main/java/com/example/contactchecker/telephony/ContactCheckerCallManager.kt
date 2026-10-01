@@ -29,6 +29,22 @@ object ContactCheckerCallManager {
     private var telephonyCallback: Any? = null
     var isSimulationMode: Boolean = false
 
+    private fun getTelephonyManager(context: Context): TelephonyManager? {
+        return try {
+            context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun getTelecomManager(context: Context): TelecomManager? {
+        return try {
+            context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     fun registerCall(call: Call) {
         activeCall = call
     }
@@ -57,7 +73,7 @@ object ContactCheckerCallManager {
 
         return try {
             val formattedUri = "tel:${Uri.encode(phoneNumber)}".toUri()
-            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            val telecomManager = getTelecomManager(context)
 
             if (telecomManager != null) {
                 telecomManager.placeCall(formattedUri, null)
@@ -69,7 +85,7 @@ object ContactCheckerCallManager {
             }
             _currentCallState.value = CallState.DIALING
             true
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             _currentCallState.value = CallState.IDLE
             false
         }
@@ -82,63 +98,80 @@ object ContactCheckerCallManager {
             return
         }
 
-        activeCall?.let { call ->
-            try {
-                call.disconnect()
-            } catch (_: Exception) {
-                // Ignore exception if call already ended
+        try {
+            activeCall?.let { call ->
+                try {
+                    call.disconnect()
+                } catch (_: Throwable) {
+                    // Ignore exception if call already ended
+                }
+                activeCall = null
             }
-            activeCall = null
-        }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && context != null && ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
-            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-            try {
-                telecomManager?.endCall()
-            } catch (_: Exception) {
-                // Ignored
+            if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) && context != null && (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED)) {
+                val telecomManager = getTelecomManager(context)
+                try {
+                    telecomManager?.endCall()
+                } catch (_: Throwable) {
+                    // Ignored
+                }
             }
+        } catch (_: Throwable) {
+            // Ignore system service errors
+        } finally {
+            _currentCallState.value = CallState.DISCONNECTED
         }
-
-        _currentCallState.value = CallState.DISCONNECTED
     }
 
     fun registerTelephonyListener(context: Context) {
-        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return
+        try {
+            val telephonyManager = getTelephonyManager(context) ?: return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            telephonyCallback = Api31TelephonyHelper.register(context, telephonyManager) { state ->
-                handleTelephonyState(state)
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            val listener = object : PhoneStateListener() {
-                @Deprecated("Deprecated in Java")
-                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                telephonyCallback = Api31TelephonyHelper.register(context, telephonyManager) { state ->
                     handleTelephonyState(state)
                 }
-            }
-            telephonyCallback = listener
-            try {
+            } else {
                 @Suppress("DEPRECATION")
-                telephonyManager.listen(listener, PhoneStateListener.LISTEN_CALL_STATE)
-            } catch (_: SecurityException) {
-                // Missing permission
+                val listener = object : PhoneStateListener() {
+                    @Deprecated("Deprecated in Java")
+                    override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                        handleTelephonyState(state)
+                    }
+                }
+                telephonyCallback = listener
+                try {
+                    @Suppress("DEPRECATION")
+                    telephonyManager.listen(listener, PhoneStateListener.LISTEN_CALL_STATE)
+                } catch (_: Throwable) {
+                    // Missing permission or service error
+                }
             }
+        } catch (_: Throwable) {
+            telephonyCallback = null
         }
     }
 
     fun unregisterTelephonyListener(context: Context) {
-        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return
-        telephonyCallback?.let { cb ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Api31TelephonyHelper.unregister(telephonyManager, cb)
-            } else if (cb is PhoneStateListener) {
-                @Suppress("DEPRECATION")
-                telephonyManager.listen(cb, PhoneStateListener.LISTEN_NONE)
+        try {
+            val telephonyManager = getTelephonyManager(context) ?: return
+            telephonyCallback?.let { cb ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Api31TelephonyHelper.unregister(telephonyManager, cb)
+                } else if (cb is PhoneStateListener) {
+                    try {
+                        @Suppress("DEPRECATION")
+                        telephonyManager.listen(cb, PhoneStateListener.LISTEN_NONE)
+                    } catch (_: Throwable) {
+                        // Safe ignore
+                    }
+                }
             }
+        } catch (_: Throwable) {
+            // Ignore error
+        } finally {
+            telephonyCallback = null
         }
-        telephonyCallback = null
     }
 
     private fun handleTelephonyState(state: Int) {
@@ -165,23 +198,27 @@ object ContactCheckerCallManager {
             context: Context,
             telephonyManager: TelephonyManager,
             onStateChanged: (Int) -> Unit
-        ): Any {
+        ): Any? {
             val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
                 override fun onCallStateChanged(state: Int) {
                     onStateChanged(state)
                 }
             }
-            try {
+            return try {
                 telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
-            } catch (_: SecurityException) {
-                // Missing permission
+                callback
+            } catch (_: Throwable) {
+                null
             }
-            return callback
         }
 
         fun unregister(telephonyManager: TelephonyManager, callback: Any) {
             if (callback is TelephonyCallback) {
-                telephonyManager.unregisterTelephonyCallback(callback)
+                try {
+                    telephonyManager.unregisterTelephonyCallback(callback)
+                } catch (_: Throwable) {
+                    // Safe ignore
+                }
             }
         }
     }

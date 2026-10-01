@@ -83,7 +83,11 @@ class ContactRepositoryImpl(
         if (_contacts.value.isEmpty()) return
 
         _verificationState.value = VerificationState.RUNNING
-        callManager.registerTelephonyListener(context)
+        try {
+            callManager.registerTelephonyListener(context)
+        } catch (_: Throwable) {
+            // Ignore system listener registration error
+        }
 
         verificationJob?.cancel()
         verificationJob = externalScope.launch {
@@ -107,8 +111,12 @@ class ContactRepositoryImpl(
         _verificationState.value = VerificationState.STOPPED
         verificationJob?.cancel()
         verificationJob = null
-        callManager.disconnectCurrentCall(context)
-        callManager.unregisterTelephonyListener(context)
+        try {
+            callManager.disconnectCurrentCall(context)
+        } catch (_: Throwable) {}
+        try {
+            callManager.unregisterTelephonyListener(context)
+        } catch (_: Throwable) {}
     }
 
     override fun resetVerification() {
@@ -163,7 +171,12 @@ class ContactRepositoryImpl(
                 )
             }
 
-            val callPlaced = callManager.placeCall(context, contact.phoneNumber)
+            val callPlaced = try {
+                callManager.placeCall(context, contact.phoneNumber)
+            } catch (_: Throwable) {
+                false
+            }
+
             if (!callPlaced) {
                 updateContact(index) {
                     it.copy(
@@ -205,7 +218,9 @@ class ContactRepositoryImpl(
                 }
             }
 
-            callManager.disconnectCurrentCall(context)
+            try {
+                callManager.disconnectCurrentCall(context)
+            } catch (_: Throwable) {}
 
             delay(1000)
 
@@ -216,7 +231,9 @@ class ContactRepositoryImpl(
             _verificationState.value = VerificationState.COMPLETED
         }
 
-        callManager.unregisterTelephonyListener(context)
+        try {
+            callManager.unregisterTelephonyListener(context)
+        } catch (_: Throwable) {}
     }
 
     private suspend fun monitorCallState(timeoutMs: Long): CallResult {

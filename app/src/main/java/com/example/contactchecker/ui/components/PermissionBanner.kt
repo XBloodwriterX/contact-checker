@@ -2,9 +2,6 @@ package com.example.contactchecker.ui.components
 
 import android.Manifest
 import android.os.Build
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +45,9 @@ fun PermissionHandler(
         buildList {
             add(Manifest.permission.CALL_PHONE)
             add(Manifest.permission.READ_PHONE_STATE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                add(Manifest.permission.ANSWER_PHONE_CALLS)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
@@ -57,7 +57,11 @@ fun PermissionHandler(
     val permissionsState = rememberMultiplePermissionsState(permissions = permissionsToRequest)
 
     LaunchedEffect(permissionsState.allPermissionsGranted) {
-        onPermissionResult(permissionsState.allPermissionsGranted)
+        try {
+            onPermissionResult(permissionsState.allPermissionsGranted)
+        } catch (_: Throwable) {
+            // Ignore state update exception
+        }
     }
 
     content(permissionsState)

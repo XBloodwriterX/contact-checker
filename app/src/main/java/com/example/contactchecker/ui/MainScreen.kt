@@ -51,15 +51,25 @@ fun MainScreen(
 
     PermissionHandler(
         onPermissionResult = { granted ->
-            viewModel.updatePermissionGranted(granted)
+            try {
+                viewModel.updatePermissionGranted(granted)
+            } catch (_: Throwable) {}
         }
     ) { permissionsState ->
-        val showPermissionBanner = !permissionsState.allPermissionsGranted
+        val showPermissionBanner = try {
+            !permissionsState.allPermissionsGranted
+        } catch (_: Throwable) {
+            false
+        }
 
         MainScreenContent(
             uiState = uiState,
             showPermissionBanner = showPermissionBanner,
-            onRequestPermissions = { permissionsState.launchMultiplePermissionRequest() },
+            onRequestPermissions = {
+                try {
+                    permissionsState.launchMultiplePermissionRequest()
+                } catch (_: Throwable) {}
+            },
             onInputTextChanged = viewModel::onRawInputChanged,
             onParseAndAdd = viewModel::parseAndAddInput,
             onClearInput = viewModel::clearRawInput,

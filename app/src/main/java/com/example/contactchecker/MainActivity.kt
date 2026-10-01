@@ -11,15 +11,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.contactchecker.ui.MainScreen
 import com.example.contactchecker.ui.MainViewModel
+import com.example.contactchecker.ui.MainViewModelFactory
 import com.example.contactchecker.ui.theme.ContactCheckerTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels()
+    private val viewModel: MainViewModel by viewModels {
+        MainViewModelFactory(application)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        try {
+            enableEdgeToEdge()
+        } catch (_: Throwable) {
+            // Ignore edge-to-edge failure on customized devices/ROMs
+        }
         setContent {
             ContactCheckerTheme {
                 Surface(
